@@ -1,7 +1,6 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-import hashlib
 import re
 
 from .common import InfoExtractor
@@ -21,6 +20,13 @@ from ..utils import (
     unsmuggle_url,
     urlencode_postdata,
 )
+
+
+def url_size(url, faker=False, headers={}, err_value=0):
+    try:
+        return url_size(url, faker, headers)
+    except:
+        return err_value
 
 
 class BiliBiliIE(InfoExtractor):
@@ -109,8 +115,12 @@ class BiliBiliIE(InfoExtractor):
         'only_matching': True,
     }]
 
-    _APP_KEY = 'iVGUTjsxvpLeuDCf'
-    _BILIBILI_KEY = 'aHRmhWMLkdeMuILqORnYZocwMBpMEOdt'
+    # _APP_KEY = 'iVGUTjsxvpLeuDCf'
+    # _BILIBILI_KEY = 'aHRmhWMLkdeMuILqORnYZocwMBpMEOdt'
+    entropy = 'rbMCKn@KuamXWlPMoJGsKcbiJKUfkPF_8dABscJntvqhRSETg'
+    appkey, sec = ''.join([chr(ord(i) + 2) for i in entropy[::-1]]).split(':')
+    _APP_KEY = appkey
+    _BILIBILI_KEY = sec
 
     def _report_error(self, result):
         if 'message' in result:
@@ -139,8 +149,9 @@ class BiliBiliIE(InfoExtractor):
                 webpage, 'player parameters'))['cid'][0]
         else:
             if 'no_bangumi_tip' not in smuggled_data:
-                self.to_screen('Downloading episode %s. To download all videos in anime %s, re-run youtube-dl with %s' % (
-                    video_id, anime_id, compat_urlparse.urljoin(url, '//bangumi.bilibili.com/anime/%s' % anime_id)))
+                self.to_screen(
+                    'Downloading episode %s. To download all videos in anime %s, re-run youtube-dl with %s' % (
+                        video_id, anime_id, compat_urlparse.urljoin(url, '//bangumi.bilibili.com/anime/%s' % anime_id)))
             headers = {
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'Referer': url
@@ -163,28 +174,65 @@ class BiliBiliIE(InfoExtractor):
 
         entries = []
 
-        RENDITIONS = ('qn=80&quality=80&type=', 'quality=2&type=mp4')
+        RENDITIONS = (
+            'qn=125&quality=125&type=', 'qn=120&quality=120&type=', 'qn=116&quality=116&type=',
+            'qn=112&quality=112&type=',
+            'qn=80&quality=80&type=', 'quality=2&type=mp4')
+        RENDITIONS = (125, 120, 116, 112, 80, 64, 32, 16)
         for num, rendition in enumerate(RENDITIONS, start=1):
-            payload = 'appkey=%s&cid=%s&otype=json&%s' % (self._APP_KEY, cid, rendition)
-            sign = hashlib.md5((payload + self._BILIBILI_KEY).encode('utf-8')).hexdigest()
-
+            # payload = 'appkey=%s&cid=%s&otype=json&%s' % (self._APP_KEY, cid, rendition)
+            # print(payload)
+            # sign = hashlib.md5((payload + self._BILIBILI_KEY).encode('utf-8')).hexdigest()
+            api_url = 'https://api.bilibili.com/x/player/playurl?avid=%s&cid=%s&qn=%s&type=&otype=json&fnver=0&fnval=16&fourk=1' % (
+            video_id, cid, rendition)
+            # print('http://interface.bilibili.com/v2/playurl?%s&sign=%s' % (payload, sign))
+            # video_info = self._download_json(
+            #     'http://interface.bilibili.com/v2/playurl?%s&sign=%s' % (payload, sign),
+            #     video_id, note='Downloading video info page',
+            #     headers=headers, fatal=num == len(RENDITIONS))
             video_info = self._download_json(
-                'http://interface.bilibili.com/v2/playurl?%s&sign=%s' % (payload, sign),
+                api_url,
                 video_id, note='Downloading video info page',
-                headers=headers, fatal=num == len(RENDITIONS))
-
+                headers=headers, fatal=num == len(RENDITIONS))['data']
+            print(video_info)
             if not video_info:
                 continue
 
-            if 'durl' not in video_info:
+            if 'durl' not in video_info and 'dash' not in video_info:
                 if num < len(RENDITIONS):
                     continue
                 self._report_error(video_info)
 
-            for idx, durl in enumerate(video_info['durl']):
+            # for idx, durl in enumerate(video_info['durl']):
+            #     formats = [{
+            #         'url': durl['url'],
+            #         'filesize': int_or_none(durl['size']),
+            #     }]
+            #     for backup_url in durl.get('backup_url', []):
+            #         formats.append({
+            #             'url': backup_url,
+            #             # backup URLs have lower priorities
+            #             'preference': -2 if 'hd.mp4' in backup_url else -3,
+            #         })
+            #
+            #     for a_format in formats:
+            #         a_format.setdefault('http_headers', {}).update({
+            #             'Referer': url,
+            #         })
+            #
+            #     self._sort_formats(formats)
+            #
+            #     entries.append({
+            #         'id': '%s_part%s' % (video_id, idx),
+            #         'duration': float_or_none(durl.get('length'), 1000),
+            #         'formats': formats,
+            #     })
+            for idx, durl in enumerate(video_info['dash']['video']):
+                url_size_res = url_size(durl['baseUrl'], headers=headers)
+                # print(url_size_res)
                 formats = [{
-                    'url': durl['url'],
-                    'filesize': int_or_none(durl['size']),
+                    'url': durl['baseUrl'],
+                    'filesize': int_or_none(url_size_res),
                 }]
                 for backup_url in durl.get('backup_url', []):
                     formats.append({
@@ -202,9 +250,10 @@ class BiliBiliIE(InfoExtractor):
 
                 entries.append({
                     'id': '%s_part%s' % (video_id, idx),
-                    'duration': float_or_none(durl.get('length'), 1000),
+                    'duration': float_or_none(url_size_res, 1000),
                     'formats': formats,
                 })
+                break
             break
 
         title = self._html_search_regex(
