@@ -234,7 +234,7 @@ class BiliBiliIE(InfoExtractor):
                     'url': durl['baseUrl'],
                     'filesize': int_or_none(url_size_res),
                 }]
-                for backup_url in durl.get('backup_url', []):
+                for backup_url in durl['backup_url']:
                     formats.append({
                         'url': backup_url,
                         # backup URLs have lower priorities
