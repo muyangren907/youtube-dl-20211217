@@ -234,12 +234,12 @@ class BiliBiliIE(InfoExtractor):
                     'url': durl['baseUrl'],
                     'filesize': int_or_none(url_size_res),
                 }]
-                for backup_url in durl['backup_url']:
-                    formats.append({
-                        'url': backup_url,
-                        # backup URLs have lower priorities
-                        'preference': -2 if 'hd.mp4' in backup_url else -3,
-                    })
+                # for backup_url in durl['backupUrl']:
+                #     formats.append({
+                #         'url': backup_url,
+                #         # backup URLs have lower priorities
+                #         'preference': -2 if 'hd.mp4' in backup_url else -3,
+                #     })
 
                 for a_format in formats:
                     a_format.setdefault('http_headers', {}).update({
