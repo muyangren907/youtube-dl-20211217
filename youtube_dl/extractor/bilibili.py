@@ -194,7 +194,7 @@ class BiliBiliIE(InfoExtractor):
                 api_url,
                 video_id, note='Downloading video info page',
                 headers=headers, fatal=num == len(RENDITIONS))['data']
-            print(video_info)
+            # print(video_info)
             if not video_info:
                 continue
 
